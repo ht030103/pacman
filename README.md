@@ -1,1 +1,214 @@
 # pacman
+# Save the current HTML content to a downloadable file
+html_code = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PacMan Game</title>
+  <style>
+    canvas {
+      background-color: black;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="448" height="496"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const tileSize = 16;
+    const rows = 31;
+    const cols = 28;
+
+    const pacman = {
+      x: 1,
+      y: 1,
+      dx: 0,
+      dy: 0,
+      speed: 1.1,
+    };
+
+    const ghosts = [
+      { x: 26, y: 27, color: "red", dx: 0, dy: 0, speed: 0.9 }
+    ];
+
+    let keysHeld = {};
+    let score = 0;
+    let gameOver = false;
+    let totalDots = 0;
+
+    const mazeLayout = [
+      "1111111111111111111111111111",
+      "1000000000000000000000000001",
+      "1011111011111111111101111101",
+      "1000001010000000000101000001",
+      "1011101010111111100101011101",
+      "1000101010000000100001010001",
+      "1110101010111110111111010111",
+      "1000000000100000100000000001",
+      "1011111111111011111111111101",
+      "1000000000000010000000000001",
+      "1111111111111111111111111111"
+    ];
+
+    const map = [];
+    for (let r = 0; r < mazeLayout.length; r++) {
+      const row = [];
+      for (let c = 0; c < mazeLayout[r].length; c++) {
+        const tile = mazeLayout[r][c] === "1" ? 1 : 0;
+        if (tile === 0) totalDots++;
+        row.push(tile);
+      }
+      map.push(row);
+    }
+
+    function drawMap() {
+      for (let row = 0; row < map.length; row++) {
+        for (let col = 0; col < map[row].length; col++) {
+          const tile = map[row][col];
+          ctx.fillStyle = tile === 1 ? "blue" : "black";
+          ctx.fillRect(col * tileSize, row * tileSize, tileSize, tileSize);
+          if (tile === 0) {
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            ctx.arc(col * tileSize + tileSize / 2, row * tileSize + tileSize / 2, 2, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    function drawPacman() {
+      ctx.fillStyle = "yellow";
+      ctx.beginPath();
+      ctx.arc(pacman.x * tileSize + tileSize / 2, pacman.y * tileSize + tileSize / 2, tileSize / 2, 0.25 * Math.PI, 1.75 * Math.PI);
+      ctx.lineTo(pacman.x * tileSize + tileSize / 2, pacman.y * tileSize + tileSize / 2);
+      ctx.fill();
+    }
+
+    function drawGhosts() {
+      for (const ghost of ghosts) {
+        ctx.fillStyle = ghost.color;
+        ctx.beginPath();
+        ctx.arc(ghost.x * tileSize + tileSize / 2, ghost.y * tileSize + tileSize / 2, tileSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    function moveGhosts() {
+      for (const ghost of ghosts) {
+        const directions = [
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 },
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+        ];
+        let bestDir = { dx: 0, dy: 0 };
+        let minDist = Infinity;
+        for (const dir of directions) {
+          const newX = Math.floor(ghost.x + dir.dx);
+          const newY = Math.floor(ghost.y + dir.dy);
+          if (
+            newY >= 0 && newY < map.length &&
+            newX >= 0 && newX < map[0].length &&
+            map[newY][newX] !== 1
+          ) {
+            const dx = pacman.x - newX;
+            const dy = pacman.y - newY;
+            const dist = dx * dx + dy * dy;
+            if (dist < minDist) {
+              minDist = dist;
+              bestDir = dir;
+            }
+          }
+        }
+        ghost.x += bestDir.dx * ghost.speed / tileSize;
+        ghost.y += bestDir.dy * ghost.speed / tileSize;
+      }
+    }
+
+    function movePacman() {
+      let newX = pacman.x;
+      let newY = pacman.y;
+
+      if (keysHeld["ArrowUp"]) newY -= 1;
+      else if (keysHeld["ArrowDown"]) newY += 1;
+      else if (keysHeld["ArrowLeft"]) newX -= 1;
+      else if (keysHeld["ArrowRight"]) newX += 1;
+
+      if (
+        newY >= 0 && newY < map.length &&
+        newX >= 0 && newX < map[0].length &&
+        map[newY][newX] !== 1
+      ) {
+        pacman.x = newX;
+        pacman.y = newY;
+        if (map[newY][newX] === 0) {
+          map[newY][newX] = -1;
+          score++;
+        }
+      }
+    }
+
+    function checkCollision() {
+      for (const ghost of ghosts) {
+        if (Math.floor(ghost.x) === pacman.x && Math.floor(ghost.y) === pacman.y) {
+          gameOver = true;
+        }
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "white";
+      ctx.font = "16px Arial";
+      ctx.fillText("Score: " + score, 10, canvas.height - 10);
+    }
+
+    function update() {
+      if (gameOver) {
+        ctx.fillStyle = "red";
+        ctx.font = "32px Arial";
+        ctx.fillText("Game Over", canvas.width / 2 - 80, canvas.height / 2);
+        return;
+      }
+      if (score === totalDots) {
+        ctx.fillStyle = "green";
+        ctx.font = "32px Arial";
+        ctx.fillText("You Win!", canvas.width / 2 - 70, canvas.height / 2);
+        return;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawMap();
+      movePacman();
+      moveGhosts();
+      drawPacman();
+      drawGhosts();
+      drawScore();
+      checkCollision();
+      requestAnimationFrame(update);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      keysHeld[e.key] = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+      keysHeld[e.key] = false;
+    });
+
+    update();
+  </script>
+</body>
+</html>
+"""
+
+# Write the HTML file to disk for download
+file_path = "/mnt/data/pacman_game.html"
+with open(file_path, "w") as f:
+    f.write(html_code)
+
+file_path
